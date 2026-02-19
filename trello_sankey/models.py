@@ -75,47 +75,39 @@ class SankeyData(BaseModel):
     total_cards: int = Field(ge=0)
 
     def to_sankeymatic_string(self) -> str:
-        """Convert all flows to SankeyMATIC format string."""
-        flow_order = [
-            "Applications",
-            "Screening",
-            "Technical",
-            "Final",
-            "Offers",
-            "Accepted",
-            "Rejected",
-            "Discriminated",
-            "Waiting",
-        ]
+        """Convert all flows to SankeyMATIC format string with strict vertical ordering"""
 
-        def sort_key(flow: FlowData) -> tuple[int, int, int]:
-            # Priority 0: Main pipeline moves (draw the trunk first)
-            # Priority 1: Drop-offs (draw Rejected/Waiting on the edges)
-            is_dropoff = 1 if flow.to_stage not in flow_order else 0
+        # Define the exact top-to-bottom vertical order we want in the diagram
+        node_ranks = {
+            "Rejected": 0,
+            "Rejected by me": 1,
+            "Discriminated": 2,
+            "Applications": 3,
+            "Screening": 4,
+            "Technical assessment": 5,
+            "Final rounds": 6,
+            "Offers": 7,
+            "Accepted": 8,
+            "Waiting": 9,
+        }
 
-            # Sort by where the flow starts in the pipeline
-            try:
-                from_idx = flow_order.index(flow.from_stage)
-            except ValueError:
-                from_idx = 99
-
-            # Sort by where the flow goes to keep the trunk straight
-            try:
-                to_idx = flow_order.index(flow.to_stage)
-            except ValueError:
-                to_idx = 99
-
-            return (is_dropoff, from_idx, to_idx)
+        def sort_key(flow: FlowData) -> tuple[int, int]:
+            # Sort primarily by where the flow starts, then by where it goes
+            from_rank = node_ranks.get(flow.from_stage, 99)
+            to_rank = node_ranks.get(flow.to_stage, 99)
+            return (from_rank, to_rank)
 
         sorted_flows = sorted(self.flows, key=sort_key)
 
-        output = [flow.to_sankeymatic_format() for flow in sorted_flows]
+        # Build the output text
+        lines = [flow.to_sankeymatic_format() for flow in sorted_flows]
 
-        # Add visual groupings and colors for SankeyMATIC
-        output.append("\n// Colors")
-        output.append(":Rejected #ff4d4d")
-        output.append(":Rejected by me #ff4d4d")
-        output.append(":Waiting #cccccc")
-        output.append(":Accepted #4CAF50")
+        # Add visual groupings and colors
+        lines.append("\n// Colors")
+        lines.append(":Rejected #ff4d4d")
+        lines.append(":Rejected by me #ff4d4d")
+        lines.append(":Discriminated #ff4d4d")
+        lines.append(":Waiting #cccccc")
+        lines.append(":Accepted #4CAF50")
 
-        return "\n".join(output)
+        return "\n".join(lines)
