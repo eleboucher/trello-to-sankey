@@ -84,14 +84,38 @@ class SankeyData(BaseModel):
             "Offers",
             "Accepted",
             "Rejected",
+            "Discriminated",
             "Waiting",
         ]
 
-        def sort_key(flow: FlowData) -> int:
-            for i, keyword in enumerate(flow_order):
-                if keyword in flow.from_stage:
-                    return i
-            return 999
+        def sort_key(flow: FlowData) -> tuple[int, int, int]:
+            # Priority 0: Main pipeline moves (draw the trunk first)
+            # Priority 1: Drop-offs (draw Rejected/Waiting on the edges)
+            is_dropoff = 1 if flow.to_stage not in flow_order else 0
+
+            # Sort by where the flow starts in the pipeline
+            try:
+                from_idx = flow_order.index(flow.from_stage)
+            except ValueError:
+                from_idx = 99
+
+            # Sort by where the flow goes to keep the trunk straight
+            try:
+                to_idx = flow_order.index(flow.to_stage)
+            except ValueError:
+                to_idx = 99
+
+            return (is_dropoff, from_idx, to_idx)
 
         sorted_flows = sorted(self.flows, key=sort_key)
-        return "\n".join(flow.to_sankeymatic_format() for flow in sorted_flows)
+
+        output = [flow.to_sankeymatic_format() for flow in sorted_flows]
+
+        # Add visual groupings and colors for SankeyMATIC
+        output.append("\n// Colors")
+        output.append(":Rejected #ff4d4d")
+        output.append(":Rejected by me #ff4d4d")
+        output.append(":Waiting #cccccc")
+        output.append(":Accepted #4CAF50")
+
+        return "\n".join(output)

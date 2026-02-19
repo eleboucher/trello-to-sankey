@@ -30,7 +30,7 @@ class TrelloSankeyGenerator:
     ]
 
     # Terminal outcome states
-    FINAL_STATES = ["Accepted", "Rejected", "Rejected by me"]
+    FINAL_STATES = ["Accepted", "Rejected", "Rejected by me", "Discriminated"]
 
     def __init__(self, client: TrelloClient | None = None) -> None:
         """Initialize with Trello API client."""
@@ -153,6 +153,13 @@ class TrelloSankeyGenerator:
                     if current_index < max_pipeline_index:
                         continue
 
+                    if (
+                        max_pipeline_index != -1
+                        and current_index > max_pipeline_index + 1
+                    ):
+                        for missing_idx in range(max_pipeline_index + 1, current_index):
+                            clean_history.append(self.PIPELINE_STAGES[missing_idx])
+
                     # Update progress and add to history
                     max_pipeline_index = current_index
                     if not clean_history or clean_history[-1] != normalized_stage:
@@ -182,9 +189,7 @@ class TrelloSankeyGenerator:
         """
         # Build flow graph from card histories
         flow_graph = build_flow_graph_from_histories(
-            clean_histories,
-            self.PIPELINE_STAGES,
-            self.FINAL_STATES
+            clean_histories, self.PIPELINE_STAGES, self.FINAL_STATES
         )
 
         # Convert graph to SankeyData (automatically handles waiting flows)
